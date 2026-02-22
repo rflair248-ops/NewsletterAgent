@@ -1,0 +1,44 @@
+# Brand voice and editorial guidelines
+brand:
+  name: "The Daily Digest"
+  tagline: "Your curated tech briefing"
+
+voice:
+  tone: "professional yet approachable"
+  perspective: "third-person"
+  # Reading level target (Flesch-Kincaid grade)
+  reading_level: 10
+  # Avoid these phrases
+  banned_phrases:
+    - "game-changer"
+    - "revolutionary"
+    - "disruptive"
+    - "synergy"
+    - "paradigm shift"
+  # Preferred style rules
+  style_rules:
+    - "Use active voice"
+    - "Keep sentences under 25 words where possible"
+    - "Attribute claims to sources"
+    - "Avoid superlatives without evidence"
+    - "Use specific numbers over vague qualifiers"
+
+sections:
+  - name: "Top Stories"
+    max_items: 3
+    description: "The most important developments of the day"
+  - name: "Industry Watch"
+    max_items: 4
+    description: "Notable moves in tech, AI, and startups"
+  - name: "Deep Dive"
+    max_items: 1
+    description: "An extended look at one significant topic"
+  - name: "Quick Hits"
+    max_items: 4
+    description: "Brief mentions worth knowing about"
+
+formatting:
+  max_summary_words: 80
+  max_deep_dive_words: 300
+  include_source_links: true
+  include_read_time: true

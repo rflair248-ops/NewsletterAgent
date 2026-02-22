@@ -1,0 +1,31 @@
+# Global pipeline settings
+pipeline:
+  name: "NewsletterAgent"
+  version: "0.1.0"
+  # Maximum number of articles to process per run
+  max_articles_per_run: 50
+  # Maximum articles in final newsletter
+  max_articles_in_newsletter: 12
+  # Minimum relevance score to pass scoring gate (0.0 - 1.0)
+  min_relevance_score: 0.4
+  # Minimum quality score to pass quality gate (0.0 - 1.0)
+  min_quality_score: 0.5
+  # Enable deduplication across runs
+  dedup_enabled: true
+  # Lookback window for dedup (days)
+  dedup_lookback_days: 7
+
+llm:
+  model: "claude-sonnet-4-20250514"
+  max_tokens: 4096
+  temperature: 0.3
+
+scheduling:
+  # Cron expression for daily run
+  cron: "0 6 * * *"
+  timezone: "America/New_York"
+
+output:
+  # Supported formats: html, markdown, plaintext
+  default_format: "html"
+  template_dir: "config/templates"
