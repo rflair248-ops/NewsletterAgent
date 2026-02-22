@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,19 +23,19 @@ Requirements:
 7) Closing is forward-looking (not recap-only)
 
 Return JSON:
-{
+{{
   "pass": true/false,
-  "criteria": {
-    "declarative_h1": {"pass": bool, "note": "..."},
-    "sources_count": {"pass": bool, "count": int, "note": "..."},
-    "domains_count": {"pass": bool, "count": int, "note": "..."},
-    "keyword_first_100": {"pass": bool, "note": "..."},
-    "h2_flow": {"pass": bool, "note": "..."},
-    "tactical_moves_3_to_5": {"pass": bool, "count": int, "note": "..."},
-    "forward_looking_close": {"pass": bool, "note": "..."}
-  },
+  "criteria": {{
+    "declarative_h1": {{"pass": bool, "note": "..."}},
+    "sources_count": {{"pass": bool, "count": int, "note": "..."}},
+    "domains_count": {{"pass": bool, "count": int, "note": "..."}},
+    "keyword_first_100": {{"pass": bool, "note": "..."}},
+    "h2_flow": {{"pass": bool, "note": "..."}},
+    "tactical_moves_3_to_5": {{"pass": bool, "count": int, "note": "..."}},
+    "forward_looking_close": {{"pass": bool, "note": "..."}}
+  }},
   "actionable_fixes": ["specific fix 1", "specific fix 2"]
-}
+}}
 
 Target keyword: {keyword}
 Known source URLs: {source_urls_json}
@@ -96,7 +97,7 @@ def _count_tactical_moves(markdown: str) -> int:
         if line.startswith("## "):
             in_moves = "tactical" in line.lower() and "move" in line.lower()
             continue
-        if in_moves and line[:2].isdigit() and line[1] == ".":
+        if in_moves and re.match(r"^\d+\.\s+", line):
             count += 1
     return count
 
@@ -149,7 +150,7 @@ def rule_based_scorecard(markdown: str, keyword: str, source_urls: list[str]) ->
     }
 
 
-async def critic_scorecard(markdown: str, keyword: str, source_urls: list[str], model: str = "sonnet") -> dict[str, Any]:
+async def critic_scorecard(markdown: str, keyword: str, source_urls: list[str], model: str) -> dict[str, Any]:
     prompt = CRITIC_PROMPT.format(
         keyword=keyword,
         source_urls_json=json.dumps(source_urls),
@@ -165,7 +166,7 @@ async def critic_scorecard(markdown: str, keyword: str, source_urls: list[str], 
     return score
 
 
-async def revise_with_fixes(markdown: str, keyword: str, fixes: list[str], model: str = "sonnet") -> str:
+async def revise_with_fixes(markdown: str, keyword: str, fixes: list[str], model: str) -> str:
     if not fixes:
         return markdown
     prompt = REVISION_PROMPT.format(

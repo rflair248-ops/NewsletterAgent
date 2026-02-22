@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 import json
 from typing import Any
 from urllib.parse import urlparse
@@ -9,7 +10,8 @@ import anthropic
 
 from engine.agents.base import BaseAgent
 from engine.llm_router import claude_cli_completion, local_completion
-from models.enums import SectionType
+from engine.model_config import anthropic_model, cli_model, provider, summarizer_model, temperature
+from models.enums import ArticleStatus, SectionType
 from models.newsletter import Newsletter, NewsletterSection
 from policy.gates import evaluate_single_feature_gate
 
@@ -97,6 +99,28 @@ Return strict JSON:
 """
 
 
+def _sanitize_untrusted_text(text: str, max_len: int = 1200) -> str:
+    stripped = re.sub(r"<[^>]+>", " ", text or "")
+    stripped = re.sub(r"\s+", " ", stripped).strip()
+    return stripped[:max_len]
+
+
+def _require_non_empty_string(value: Any, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"Invalid {field_name}: expected string")
+    cleaned = value.strip()
+    if not cleaned:
+        raise ValueError(f"Invalid {field_name}: empty")
+    return cleaned
+
+
+def _require_non_empty_markdown(value: Any, field_name: str) -> str:
+    markdown = _require_non_empty_string(value, field_name)
+    if len(markdown.split()) < 6:
+        raise ValueError(f"Invalid {field_name}: too short")
+    return markdown
+
+
 class ComposerAgent(BaseAgent):
     """Assembles section assignments and summaries into a Newsletter object."""
 
@@ -162,7 +186,7 @@ class ComposerAgent(BaseAgent):
         min_cluster_size = int(pipeline_cfg.get("single_feature_min_cluster_size", 3))
 
         ranked = sorted(
-            [a for a in self.context.articles if a.id in self.context.scores],
+            [a for a in self.context.articles if a.id in self.context.scores and a.status == ArticleStatus.DEDUPLICATED],
             key=lambda a: self.context.scores[a.id].overall,
             reverse=True,
         )
@@ -171,11 +195,11 @@ class ComposerAgent(BaseAgent):
         signals = [
             {
                 "id": a.id,
-                "title": a.title,
+                "title": _sanitize_untrusted_text(a.title, max_len=240),
                 "url": str(a.url),
                 "source_name": a.source_name,
                 "score": self.context.scores[a.id].overall,
-                "summary": (self.context.summaries.get(a.id).summary if a.id in self.context.summaries else ""),
+                "summary": _sanitize_untrusted_text((self.context.summaries.get(a.id).summary if a.id in self.context.summaries else a.raw_content), max_len=800),
             }
             for a in candidates
         ]
@@ -213,18 +237,18 @@ class ComposerAgent(BaseAgent):
             STAGE_2_THESIS_PROMPT.format(cluster_json=json.dumps(cluster_payload, indent=2)),
             system="You extract one structural-shift thesis sentence. Return strict JSON.",
         )
-        thesis = stage_2_text.get("thesis", "")
+        thesis = _require_non_empty_string(stage_2_text.get("thesis", ""), "thesis")
 
         source_payload = []
         for article in selected_articles:
             source_payload.append(
                 {
                     "id": article.id,
-                    "title": article.title,
+                    "title": _sanitize_untrusted_text(article.title, max_len=240),
                     "url": str(article.url),
                     "domain": urlparse(str(article.url)).netloc,
                     "source_name": article.source_name,
-                    "content_excerpt": article.raw_content[:1200],
+                    "content_excerpt": _sanitize_untrusted_text(article.raw_content, max_len=1200),
                     "score": self.context.scores[article.id].overall,
                 }
             )
@@ -238,21 +262,21 @@ class ComposerAgent(BaseAgent):
         )
 
         stage_4_text = await self._llm_json(
-            STAGE_4_SEO_PROMPT.format(draft_markdown=stage_3_text.get("draft_markdown", "")),
+            STAGE_4_SEO_PROMPT.format(draft_markdown=_require_non_empty_markdown(stage_3_text.get("draft_markdown", ""), "draft_markdown")),
             system="You are an SEO strategist editor. Return strict JSON.",
         )
 
         edition_id = datetime.now(timezone.utc).strftime("%Y%m%d")
         brand_name = self.context.brand_config.get("brand", {}).get("name", "Newsletter")
-        headline = stage_4_text.get("headline", "Strategic Intelligence Feature")
-        keyword = stage_4_text.get("target_keyword", "legal strategy")
+        headline = _require_non_empty_string(stage_4_text.get("headline", "Strategic Intelligence Feature"), "headline")
+        keyword = _require_non_empty_string(stage_4_text.get("target_keyword", "legal strategy"), "target_keyword")
 
         newsletter = Newsletter(
             edition_id=edition_id,
             subject_line=f"{brand_name} — {headline}",
             sections=[],
             total_articles=len(selected_articles),
-            markdown_body=stage_4_text.get("article_markdown", ""),
+            markdown_body=_require_non_empty_markdown(stage_4_text.get("article_markdown", ""), "article_markdown"),
             metadata={
                 "mode": "single_feature",
                 "target_keyword": keyword,
@@ -272,29 +296,27 @@ class ComposerAgent(BaseAgent):
         )
 
     async def _llm_json(self, prompt: str, system: str) -> dict[str, Any]:
-        llm_cfg = self.context.settings.get("llm", {})
-        local_cfg = llm_cfg.get("local", {})
-        provider = local_cfg.get("provider", "ollama")
+        selected_provider = provider(self.context.settings)
 
-        if provider == "anthropic":
+        if selected_provider == "anthropic":
             client = anthropic.AsyncAnthropic()
-            model = llm_cfg.get("model", "claude-sonnet-4-20250514")
+            model = anthropic_model(self.context.settings)
             response = await client.messages.create(
                 model=model,
                 max_tokens=2048,
                 messages=[{"role": "user", "content": f"{system}\n\n{prompt}"}],
             )
             text = response.content[0].text
-        elif provider == "claude_cli":
-            model = llm_cfg.get("cli_model", "sonnet")
+        elif selected_provider == "claude_cli":
+            model = cli_model(self.context.settings)
             text = await claude_cli_completion(prompt=prompt, system=system, model=model)
         else:
-            model = local_cfg.get("summarizer_model", "mistral-small")
+            model = summarizer_model(self.context.settings)
             text = await local_completion(
                 model=model,
                 prompt=prompt,
                 system=system,
-                temperature=local_cfg.get("temperature", 0.3),
+                temperature=temperature(self.context.settings),
                 max_tokens=2048,
             )
 

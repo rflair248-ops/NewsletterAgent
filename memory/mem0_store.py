@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import logging
+from functools import partial
 import os
 import shutil
 from pathlib import Path
@@ -162,6 +164,9 @@ class Mem0Store:
     def enabled(self) -> bool:
         return self._enabled
 
+    async def _call_client(self, fn, *args, **kwargs):
+        return await asyncio.to_thread(partial(fn, *args, **kwargs))
+
     async def store_article(
         self,
         article_id: str,
@@ -188,7 +193,7 @@ class Mem0Store:
         ]
 
         try:
-            result = self._client.add(
+            result = await self._call_client(self._client.add,
                 messages,
                 user_id=self.PIPELINE_USER_ID,
                 agent_id=self.AGENT_ID,
@@ -226,7 +231,7 @@ class Mem0Store:
         query = f"{title}. {content[:300]}" if content else title
 
         try:
-            results = self._client.search(
+            results = await self._call_client(self._client.search,
                 query,
                 user_id=self.PIPELINE_USER_ID,
                 agent_id=self.AGENT_ID,
@@ -266,7 +271,7 @@ class Mem0Store:
         ]
 
         try:
-            result = self._client.add(
+            result = await self._call_client(self._client.add,
                 messages,
                 user_id=self.EDITORIAL_USER_ID,
                 agent_id=self.AGENT_ID,
@@ -298,7 +303,7 @@ class Mem0Store:
             return []
 
         try:
-            results = self._client.search(
+            results = await self._call_client(self._client.search,
                 query,
                 user_id=self.EDITORIAL_USER_ID,
                 agent_id=self.AGENT_ID,
@@ -318,7 +323,7 @@ class Mem0Store:
             return []
 
         try:
-            result = self._client.get_all(user_id=user_id)
+            result = await self._call_client(self._client.get_all, user_id=user_id)
             if isinstance(result, dict):
                 return result.get("results", result.get("memories", []))
             if isinstance(result, list):

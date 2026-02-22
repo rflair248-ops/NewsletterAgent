@@ -49,6 +49,10 @@ async def run_pipeline(single_feature_mode: bool | None = None) -> PipelineConte
     logger.info("Starting pipeline run %s", context.run_id)
 
     for agent_cls in PIPELINE_AGENTS:
+        if _should_skip_stage(agent_cls, context):
+            logger.info("Skipping stage %s in single_feature_mode", agent_cls.name)
+            context.audit("stage_skipped", stage=agent_cls.name, reason="single_feature_mode")
+            continue
         agent = agent_cls(context)
         async with agent:
             try:
@@ -79,3 +83,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def _should_skip_stage(agent_cls, context: PipelineContext) -> bool:
+    single_feature = bool(context.settings.get("pipeline", {}).get("single_feature_mode", False))
+    if not single_feature:
+        return False
+    return agent_cls in {SummarizerAgent, AssignerAgent}

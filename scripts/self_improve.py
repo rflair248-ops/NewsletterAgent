@@ -11,6 +11,7 @@ from typing import Any
 import anthropic
 
 from engine.llm_router import claude_cli_completion, local_completion
+from engine.model_config import anthropic_model, cli_model, editor_model, provider
 from retrieval.config_loader import load_settings
 
 logger = logging.getLogger(__name__)
@@ -56,28 +57,26 @@ Respond with JSON:
   "reasoning": "..."
 }}"""
 
-    llm_cfg = settings.get("llm", {})
-    local_cfg = llm_cfg.get("local", {})
-    provider = local_cfg.get("provider", "ollama")
+    selected_provider = provider(settings)
 
-    if provider == "anthropic":
+    if selected_provider == "anthropic":
         client = anthropic.AsyncAnthropic()
-        model = llm_cfg.get("model", "claude-sonnet-4-20250514")
+        model = anthropic_model(settings)
         response = await client.messages.create(
             model=model,
             max_tokens=1200,
             messages=[{"role": "user", "content": prompt}],
         )
         result = response.content[0].text
-    elif provider == "claude_cli":
-        model = llm_cfg.get("cli_model", "sonnet")
+    elif selected_provider == "claude_cli":
+        model = cli_model(settings)
         result = await claude_cli_completion(
             prompt=prompt,
             system="You are a newsletter quality analyst. Be concise and data-driven.",
             model=model,
         )
     else:
-        model = local_cfg.get("editor_model", "llama3.1:8b")
+        model = editor_model(settings)
         result = await local_completion(
             model=model,
             prompt=prompt,

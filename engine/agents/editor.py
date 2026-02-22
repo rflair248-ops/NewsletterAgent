@@ -4,6 +4,7 @@ import anthropic
 
 from engine.agents.base import BaseAgent
 from engine.llm_router import claude_cli_completion, local_completion
+from engine.model_config import anthropic_model, cli_model, editor_model, local_max_tokens, provider, temperature
 from models.enums import ArticleStatus
 from policy.quality_checks import (
     append_quality_check,
@@ -47,11 +48,12 @@ class EditorAgent(BaseAgent):
             self.logger.info("Review passed — no edits needed")
             self._render_output(newsletter)
             await self._run_single_feature_quality_checks(newsletter)
+            for article in self.context.curated_articles:
+                article.status = ArticleStatus.PUBLISHED
+                await self._remember_article(article)
             return
 
-        llm_cfg = self.context.settings.get("llm", {})
-        local_cfg = llm_cfg.get("local", {})
-        provider = local_cfg.get("provider", "ollama")
+        selected_provider = provider(self.context.settings)
 
         content = self._newsletter_to_markdown(newsletter)
         issues = review.get("issues", []) if review else []
@@ -63,31 +65,31 @@ class EditorAgent(BaseAgent):
             content=content,
         )
 
-        if provider == "anthropic":
+        if selected_provider == "anthropic":
             client = anthropic.AsyncAnthropic()
-            model = llm_cfg.get("model", "claude-sonnet-4-20250514")
+            model = anthropic_model(self.context.settings)
             response = await client.messages.create(
                 model=model,
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
             edited_markdown = response.content[0].text
-        elif provider == "claude_cli":
-            model = llm_cfg.get("cli_model", "sonnet")
+        elif selected_provider == "claude_cli":
+            model = cli_model(self.context.settings)
             edited_markdown = await claude_cli_completion(
                 prompt=prompt,
                 system="You are a newsletter copy editor. Return corrected markdown only.",
                 model=model,
             )
         else:
-            model = local_cfg.get("editor_model", "llama3.1:8b")
-            temperature = local_cfg.get("temperature", 0.3)
-            max_tokens = local_cfg.get("max_tokens", 2048)
+            model = editor_model(self.context.settings)
+            temp = temperature(self.context.settings)
+            max_tokens = local_max_tokens(self.context.settings)
             edited_markdown = await local_completion(
                 model=model,
                 prompt=prompt,
                 system="You are a newsletter copy editor. Return corrected markdown only.",
-                temperature=temperature,
+                temperature=temp,
                 max_tokens=max_tokens,
             )
         newsletter.markdown_body = edited_markdown
@@ -115,7 +117,7 @@ class EditorAgent(BaseAgent):
 
         keyword = (newsletter.metadata or {}).get("target_keyword", "").strip()
         source_urls = [str(a.url) for a in self.context.curated_articles if a.url]
-        cli_model = self.context.settings.get("llm", {}).get("cli_model", "sonnet")
+        cli_model_value = cli_model(self.context.settings)
 
         fallback_used = False
         try:
@@ -123,7 +125,7 @@ class EditorAgent(BaseAgent):
                 markdown=newsletter.markdown_body,
                 keyword=keyword,
                 source_urls=source_urls,
-                model=cli_model,
+                model=cli_model_value,
             )
         except Exception as exc:  # noqa: BLE001
             fallback_used = True
@@ -146,14 +148,14 @@ class EditorAgent(BaseAgent):
                     markdown=newsletter.markdown_body,
                     keyword=keyword,
                     fixes=fixes,
-                    model=cli_model,
+                    model=cli_model_value,
                 )
                 newsletter.markdown_body = revised
                 recheck = await critic_scorecard(
                     markdown=newsletter.markdown_body,
                     keyword=keyword,
                     source_urls=source_urls,
-                    model=cli_model,
+                    model=cli_model_value,
                 )
             except Exception as exc:  # noqa: BLE001
                 self.logger.warning("Revision/recheck critic unavailable; falling back to rules: %s", exc)

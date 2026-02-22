@@ -5,6 +5,7 @@ import json
 
 from engine.agents.base import BaseAgent
 from engine.llm_router import claude_cli_completion
+from engine.model_config import anthropic_model, cli_model, provider
 
 
 REVIEW_PROMPT = """\
@@ -16,7 +17,7 @@ Check for:
 3. Banned phrases: {banned}
 4. Grammar and clarity issues
 
-Newsletter sections:
+Newsletter content:
 {sections_text}
 
 Respond in JSON with keys:
@@ -40,11 +41,9 @@ class ReviewerAgent(BaseAgent):
         brand = self.context.brand_config
         voice = brand.get("voice", {})
 
-        sections_text = self._format_sections(newsletter)
+        sections_text = self._format_newsletter_content(newsletter)
 
-        llm_cfg = self.context.settings.get("llm", {})
-        local_cfg = llm_cfg.get("local", {})
-        provider = local_cfg.get("provider", "ollama")
+        selected_provider = provider(self.context.settings)
 
         prompt = REVIEW_PROMPT.format(
             tone=voice.get("tone", "professional"),
@@ -52,17 +51,17 @@ class ReviewerAgent(BaseAgent):
             sections_text=sections_text,
         )
 
-        if provider == "anthropic":
+        if selected_provider == "anthropic":
             client = anthropic.AsyncAnthropic()
-            model = llm_cfg.get("model", "claude-sonnet-4-20250514")
+            model = anthropic_model(self.context.settings)
             response = await client.messages.create(
                 model=model,
                 max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
             )
             text = response.content[0].text
-        elif provider == "claude_cli":
-            model = llm_cfg.get("cli_model", "sonnet")
+        elif selected_provider == "claude_cli":
+            model = cli_model(self.context.settings)
             text = await claude_cli_completion(
                 prompt=prompt,
                 system="You are a senior newsletter reviewer. Return strict JSON only.",
@@ -70,7 +69,7 @@ class ReviewerAgent(BaseAgent):
             )
         else:
             # fallback to claude-cli for review when local provider doesn't support this stage
-            model = llm_cfg.get("cli_model", "sonnet")
+            model = cli_model(self.context.settings)
             text = await claude_cli_completion(
                 prompt=prompt,
                 system="You are a senior newsletter reviewer. Return strict JSON only.",
@@ -95,7 +94,10 @@ class ReviewerAgent(BaseAgent):
         )
 
     @staticmethod
-    def _format_sections(newsletter) -> str:  # noqa: ANN001
+    def _format_newsletter_content(newsletter) -> str:  # noqa: ANN001
+        if newsletter.markdown_body and newsletter.markdown_body.strip():
+            return newsletter.markdown_body
+
         parts = []
         for section in newsletter.sections:
             parts.append(f"\n## {section.title}")
