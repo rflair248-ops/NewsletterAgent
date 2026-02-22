@@ -90,6 +90,8 @@ class TestMem0StoreEnabled:
         store._client.add.assert_called_once()
         call_kwargs = store._client.add.call_args
         assert call_kwargs[1]["user_id"] == "newsletter_pipeline"
+        assert call_kwargs[1]["agent_id"] == "newsletter_agent"
+        assert call_kwargs[1]["run_id"] == "run1"
         assert call_kwargs[1]["metadata"]["article_id"] == "art1"
 
     @pytest.mark.asyncio
@@ -116,6 +118,9 @@ class TestMem0StoreEnabled:
         assert results[0]["memory_id"] == "mem1"
         assert results[0]["score"] == 0.92
         store._client.search.assert_called_once()
+        search_kwargs = store._client.search.call_args.kwargs
+        assert search_kwargs["user_id"] == "newsletter_pipeline"
+        assert search_kwargs["agent_id"] == "newsletter_agent"
 
     @pytest.mark.asyncio
     async def test_find_similar_handles_exception(self):
@@ -135,6 +140,8 @@ class TestMem0StoreEnabled:
         assert result == "dec_xyz"
         call_kwargs = store._client.add.call_args
         assert call_kwargs[1]["user_id"] == "newsletter_editorial"
+        assert call_kwargs[1]["agent_id"] == "newsletter_agent"
+        assert call_kwargs[1]["run_id"] == "run1"
         assert call_kwargs[1]["metadata"]["decision"] == "published"
 
     @pytest.mark.asyncio
@@ -146,6 +153,9 @@ class TestMem0StoreEnabled:
 
         results = await store.get_past_decisions("article X")
         assert len(results) == 1
+        search_kwargs = store._client.search.call_args.kwargs
+        assert search_kwargs["user_id"] == "newsletter_editorial"
+        assert search_kwargs["agent_id"] == "newsletter_agent"
 
     @pytest.mark.asyncio
     async def test_get_all_memories_dict_response(self):

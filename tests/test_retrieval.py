@@ -19,4 +19,4 @@ class TestConfigLoader:
     def test_load_source_config(self):
         config = load_source_config()
         assert len(config.rss_feeds) > 0
-        assert config.category_weights.get("tech") == 1.0
+        assert config.category_weights.get("seo") == 1.2

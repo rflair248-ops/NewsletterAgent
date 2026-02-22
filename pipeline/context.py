@@ -30,7 +30,12 @@ class PipelineContext:
         self.source_config = source_config
 
         # Memory layer (cross-run dedup, editorial decisions)
-        self.memory = mem0_store or Mem0Store()
+        if mem0_store is not None:
+            self.memory = mem0_store
+        else:
+            memory_cfg = dict((settings or {}).get("memory", {}))
+            enabled = memory_cfg.pop("enabled", True)
+            self.memory = Mem0Store(config=memory_cfg) if enabled else Mem0Store(config={"_disabled": True})
 
         # Mutable state populated by agents
         self.articles: list[Article] = []

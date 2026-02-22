@@ -37,8 +37,9 @@ memory:
   # Vector store for local open-source mode (ignored when MEM0_API_KEY is set)
   vector_store:
     provider: "qdrant"
-    collection_name: "newsletter_agent"
-    path: ".mem0/qdrant"
+    # Dimension-scoped collection/path avoids collisions with legacy 1536-dim stores.
+    collection_name: "newsletter_agent_768d_v2"
+    path: ".mem0/qdrant_768d_v2"
   # Similarity threshold for cross-run dedup (0.0 - 1.0)
   dedup_threshold: 0.85
 

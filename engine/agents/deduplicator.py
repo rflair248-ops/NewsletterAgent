@@ -60,6 +60,7 @@ class DeduplicatorAgent(BaseAgent):
                 title=article.title,
                 content=article.raw_content[:300],
                 limit=1,
+                run_id=self.context.run_id,
             )
             if similar:
                 best = similar[0]
