@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from engine.model_config import scoring_weights
 from models.article import Article
 from models.score import ArticleScore
 from scoring.quality import score_quality
@@ -7,16 +8,6 @@ from scoring.relevance import score_relevance
 from scoring.source_authority import score_source_authority
 from scoring.timeliness import score_timeliness
 from scoring.uniqueness import score_uniqueness
-
-# Default weights for each dimension
-DIMENSION_WEIGHTS = {
-    "relevance": 0.25,
-    "quality": 0.25,
-    "timeliness": 0.20,
-    "uniqueness": 0.15,
-    "source_authority": 0.15,
-}
-
 
 async def compute_composite_score(
     article: Article,
@@ -33,8 +24,9 @@ async def compute_composite_score(
         await score_source_authority(article),
     ]
 
+    dimension_weights = scoring_weights(settings)
     overall = sum(
-        b.value * DIMENSION_WEIGHTS.get(b.dimension.value, 0.2)
+        b.value * dimension_weights.get(b.dimension.value, 0.2)
         for b in breakdowns
     )
     overall = round(min(1.0, max(0.0, overall)), 3)

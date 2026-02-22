@@ -5,6 +5,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+from engine.model_config import mem0_llm_model
 from memory.mem0_store import Mem0Store
 from models.article import Article, ArticleSummary
 from models.enums import SectionType
@@ -35,6 +36,7 @@ class PipelineContext:
         else:
             memory_cfg = dict((settings or {}).get("memory", {}))
             enabled = memory_cfg.pop("enabled", True)
+            memory_cfg.setdefault("llm_model", mem0_llm_model(settings))
             self.memory = Mem0Store(config=memory_cfg) if enabled else Mem0Store(config={"_disabled": True})
 
         # Mutable state populated by agents

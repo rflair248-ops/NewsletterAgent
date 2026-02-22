@@ -8,6 +8,8 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from engine.model_config import mem0_llm_model
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,6 +83,11 @@ class Mem0Store:
         default_collection = f"newsletter_agent_{embedding_dims}d_v2"
         collection_name = os.getenv("MEM0_COLLECTION_NAME", default_collection)
 
+        configured_mem0_llm_model = (config or {}).get("llm_model") if isinstance(config, dict) else None
+        mem0_model = os.getenv("MEM0_LLM_MODEL") or mem0_llm_model(
+            {"llm": {"local": {"mem0_llm_model": configured_mem0_llm_model}}}
+        )
+
         base = {
             "vector_store": {
                 "provider": "qdrant",
@@ -101,7 +108,7 @@ class Mem0Store:
             "llm": {
                 "provider": "ollama",
                 "config": {
-                    "model": "llama3.1:8b",
+                    "model": mem0_model,
                     "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
                 },
             },

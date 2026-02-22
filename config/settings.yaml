@@ -34,8 +34,18 @@ llm:
     base_url: "http://localhost:11434"
     summarizer_model: "mistral-small"
     editor_model: "llama3.1:8b"
+    mem0_llm_model: "llama3.1:8b"
     temperature: 0.3
     max_tokens: 2048
+
+scoring:
+  # Composite score weighting per scoring dimension
+  dimension_weights:
+    relevance: 0.25
+    quality: 0.25
+    timeliness: 0.20
+    uniqueness: 0.15
+    source_authority: 0.15
 
 memory:
   # Enable cross-run memory via Mem0

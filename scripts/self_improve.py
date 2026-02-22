@@ -11,7 +11,7 @@ from typing import Any
 import anthropic
 
 from engine.llm_router import claude_cli_completion, local_completion
-from engine.model_config import anthropic_model, cli_model, editor_model, provider
+from engine.model_config import anthropic_model, cli_model, editor_model, provider, scoring_weights
 from retrieval.config_loader import load_settings
 
 logger = logging.getLogger(__name__)
@@ -41,13 +41,16 @@ def _load_recent_audit_entries(limit: int = 50) -> list[dict[str, Any]]:
 async def analyze_run(audit_entries: list[dict[str, Any]], settings: dict[str, Any]) -> dict[str, Any]:
     """Ask local model to analyze pipeline performance and suggest tuning."""
     summary = json.dumps(audit_entries[-50:], indent=2, default=str)
+    weights = scoring_weights(settings)
+    formatted_weights = ", ".join(f"{k}: {v:.2f}" for k, v in weights.items())
+
     prompt = f"""Analyze this newsletter pipeline run audit log and suggest improvements.
 
 Audit log (last 50 entries):
 {summary}
 
 Current scoring weights:
-relevance: 0.25, quality: 0.25, timeliness: 0.20, uniqueness: 0.15, source_authority: 0.15
+{formatted_weights}
 
 Respond with JSON:
 {{
