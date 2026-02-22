@@ -68,3 +68,8 @@ output:
   # Supported formats: html, markdown, plaintext
   default_format: "html"
   template_dir: "config/templates"
+  google_sheets:
+    enabled: false
+    sheet_id: ""
+    worksheet: "articles"
+    service_account_json: ""
