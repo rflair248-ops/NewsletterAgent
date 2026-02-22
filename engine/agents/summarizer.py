@@ -75,7 +75,15 @@ class SummarizerAgent(BaseAgent):
                 max_tokens=max_tokens,
             )
 
-        data = json.loads(text)
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                data = json.loads(text[start : end + 1])
+            else:
+                raise
 
         return ArticleSummary(
             article_id=article.id,

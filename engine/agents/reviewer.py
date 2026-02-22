@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import anthropic
+import json
 
 from engine.agents.base import BaseAgent
+from engine.llm_router import claude_cli_completion
 
 
 REVIEW_PROMPT = """\
@@ -40,8 +42,9 @@ class ReviewerAgent(BaseAgent):
 
         sections_text = self._format_sections(newsletter)
 
-        client = anthropic.AsyncAnthropic()
-        model = self.context.settings.get("llm", {}).get("model", "claude-sonnet-4-20250514")
+        llm_cfg = self.context.settings.get("llm", {})
+        local_cfg = llm_cfg.get("local", {})
+        provider = local_cfg.get("provider", "ollama")
 
         prompt = REVIEW_PROMPT.format(
             tone=voice.get("tone", "professional"),
@@ -49,16 +52,40 @@ class ReviewerAgent(BaseAgent):
             sections_text=sections_text,
         )
 
-        response = await client.messages.create(
-            model=model,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
-        )
+        if provider == "anthropic":
+            client = anthropic.AsyncAnthropic()
+            model = llm_cfg.get("model", "claude-sonnet-4-20250514")
+            response = await client.messages.create(
+                model=model,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.content[0].text
+        elif provider == "claude_cli":
+            model = llm_cfg.get("cli_model", "sonnet")
+            text = await claude_cli_completion(
+                prompt=prompt,
+                system="You are a senior newsletter reviewer. Return strict JSON only.",
+                model=model,
+            )
+        else:
+            # fallback to claude-cli for review when local provider doesn't support this stage
+            model = llm_cfg.get("cli_model", "sonnet")
+            text = await claude_cli_completion(
+                prompt=prompt,
+                system="You are a senior newsletter reviewer. Return strict JSON only.",
+                model=model,
+            )
 
-        import json
-
-        text = response.content[0].text
-        review = json.loads(text)
+        try:
+            review = json.loads(text)
+        except json.JSONDecodeError:
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1 and end > start:
+                review = json.loads(text[start : end + 1])
+            else:
+                review = {"approved": False, "issues": ["Review output was not valid JSON"], "suggestions": []}
 
         self.context.review_result = review
         self.logger.info(
