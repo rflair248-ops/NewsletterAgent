@@ -10,7 +10,7 @@ from typing import Any
 
 import anthropic
 
-from engine.llm_router import local_completion
+from engine.llm_router import claude_cli_completion, local_completion
 from retrieval.config_loader import load_settings
 
 logger = logging.getLogger(__name__)
@@ -69,6 +69,13 @@ Respond with JSON:
             messages=[{"role": "user", "content": prompt}],
         )
         result = response.content[0].text
+    elif provider == "claude_cli":
+        model = llm_cfg.get("cli_model", "sonnet")
+        result = await claude_cli_completion(
+            prompt=prompt,
+            system="You are a newsletter quality analyst. Be concise and data-driven.",
+            model=model,
+        )
     else:
         model = local_cfg.get("editor_model", "llama3.1:8b")
         result = await local_completion(

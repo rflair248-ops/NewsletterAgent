@@ -16,13 +16,15 @@ pipeline:
   dedup_lookback_days: 7
 
 llm:
-  # Primary (cloud) — used for complex reasoning tasks
+  # Primary (cloud/API) model identifier
   model: "claude-sonnet-4-20250514"
+  # Claude Code CLI model alias (uses your local Claude auth)
+  cli_model: "sonnet"
   max_tokens: 4096
   temperature: 0.3
-  # Local (Ollama) — used for article production at scale
+  # Provider routing for article production
   local:
-    provider: "anthropic"
+    provider: "claude_cli"
     base_url: "http://localhost:11434"
     summarizer_model: "mistral-small"
     editor_model: "llama3.1:8b"

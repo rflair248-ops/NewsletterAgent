@@ -3,7 +3,7 @@ from __future__ import annotations
 import anthropic
 
 from engine.agents.base import BaseAgent
-from engine.llm_router import local_completion
+from engine.llm_router import claude_cli_completion, local_completion
 from models.enums import ArticleStatus
 
 
@@ -65,6 +65,13 @@ class EditorAgent(BaseAgent):
                 messages=[{"role": "user", "content": prompt}],
             )
             edited_markdown = response.content[0].text
+        elif provider == "claude_cli":
+            model = llm_cfg.get("cli_model", "sonnet")
+            edited_markdown = await claude_cli_completion(
+                prompt=prompt,
+                system="You are a newsletter copy editor. Return corrected markdown only.",
+                model=model,
+            )
         else:
             model = local_cfg.get("editor_model", "llama3.1:8b")
             temperature = local_cfg.get("temperature", 0.3)

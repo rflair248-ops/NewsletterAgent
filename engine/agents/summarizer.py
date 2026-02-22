@@ -6,7 +6,7 @@ import json
 import anthropic
 
 from engine.agents.base import BaseAgent
-from engine.llm_router import local_completion
+from engine.llm_router import claude_cli_completion, local_completion
 from models.article import ArticleSummary
 
 
@@ -56,6 +56,13 @@ class SummarizerAgent(BaseAgent):
                 messages=[{"role": "user", "content": prompt}],
             )
             text = response.content[0].text
+        elif provider == "claude_cli":
+            model = llm_cfg.get("cli_model", "sonnet")
+            text = await claude_cli_completion(
+                prompt=prompt,
+                system="You are a newsletter summarizer. Return strict JSON only.",
+                model=model,
+            )
         else:
             model = local_cfg.get("summarizer_model", "mistral-small")
             temperature = local_cfg.get("temperature", 0.3)

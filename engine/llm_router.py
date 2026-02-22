@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any
 
@@ -52,3 +53,25 @@ async def local_chat(
         resp.raise_for_status()
         data = resp.json()
         return data.get("message", {}).get("content", "")
+
+
+async def claude_cli_completion(
+    prompt: str,
+    system: str = "",
+    model: str = "sonnet",
+) -> str:
+    """Use Claude Code CLI authenticated session (no API key in code path)."""
+    full_prompt = f"{system}\n\n{prompt}" if system else prompt
+    proc = await asyncio.create_subprocess_exec(
+        "claude",
+        "-p",
+        "--model",
+        model,
+        full_prompt,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    out, err = await proc.communicate()
+    if proc.returncode != 0:
+        raise RuntimeError(f"claude CLI failed: {err.decode('utf-8', errors='ignore').strip()}")
+    return out.decode("utf-8", errors="ignore").strip()
