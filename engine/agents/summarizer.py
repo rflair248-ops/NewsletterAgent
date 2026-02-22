@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime
-
-import anthropic
+import json
 
 from engine.agents.base import BaseAgent
+from engine.llm_router import local_completion
 from models.article import ArticleSummary
 
 
@@ -20,39 +20,39 @@ Respond in JSON with keys: headline (max 120 chars), summary (max 500 chars), ke
 
 
 class SummarizerAgent(BaseAgent):
-    """Uses Claude to generate concise summaries of curated articles."""
+    """Uses local Ollama model to generate concise summaries of curated articles."""
 
     name = "summarizer"
 
     async def run(self) -> None:
-        client = anthropic.AsyncAnthropic()
-        model = self.context.settings.get("llm", {}).get("model", "claude-sonnet-4-20250514")
+        local_cfg = self.context.settings.get("llm", {}).get("local", {})
+        model = local_cfg.get("summarizer_model", "mistral-small")
+        temperature = local_cfg.get("temperature", 0.3)
+        max_tokens = local_cfg.get("max_tokens", 1024)
 
         for article in self.context.curated_articles:
             try:
-                summary = await self._summarize(client, model, article)
+                summary = await self._summarize(model, article, temperature, max_tokens)
                 self.context.summaries[article.id] = summary
             except Exception:
                 self.logger.exception("Failed to summarize article %s", article.id)
 
         self.logger.info("Generated %d summaries", len(self.context.summaries))
 
-    async def _summarize(self, client: anthropic.AsyncAnthropic, model: str, article) -> ArticleSummary:  # noqa: ANN001
+    async def _summarize(self, model: str, article, temperature: float, max_tokens: int) -> ArticleSummary:  # noqa: ANN001
         prompt = SUMMARIZE_PROMPT.format(
             title=article.title,
             source=article.source_name,
             content=article.raw_content[:3000],
         )
 
-        response = await client.messages.create(
+        text = await local_completion(
             model=model,
-            max_tokens=1024,
-            messages=[{"role": "user", "content": prompt}],
+            prompt=prompt,
+            system="You are a newsletter summarizer. Return strict JSON only.",
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
-
-        import json
-
-        text = response.content[0].text
         data = json.loads(text)
 
         return ArticleSummary(

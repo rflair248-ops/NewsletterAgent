@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import anthropic
-
 from engine.agents.base import BaseAgent
+from engine.llm_router import local_completion
 from models.enums import ArticleStatus
 
 
@@ -41,9 +40,11 @@ class EditorAgent(BaseAgent):
             self._render_output(newsletter)
             return
 
-        # Apply edits via Claude
-        client = anthropic.AsyncAnthropic()
-        model = self.context.settings.get("llm", {}).get("model", "claude-sonnet-4-20250514")
+        # Apply edits via local Ollama model
+        local_cfg = self.context.settings.get("llm", {}).get("local", {})
+        model = local_cfg.get("editor_model", "llama3.1:8b")
+        temperature = local_cfg.get("temperature", 0.3)
+        max_tokens = local_cfg.get("max_tokens", 2048)
 
         content = self._newsletter_to_markdown(newsletter)
         issues = review.get("issues", []) if review else []
@@ -55,13 +56,13 @@ class EditorAgent(BaseAgent):
             content=content,
         )
 
-        response = await client.messages.create(
+        edited_markdown = await local_completion(
             model=model,
-            max_tokens=4096,
-            messages=[{"role": "user", "content": prompt}],
+            prompt=prompt,
+            system="You are a newsletter copy editor. Return corrected markdown only.",
+            temperature=temperature,
+            max_tokens=max_tokens,
         )
-
-        edited_markdown = response.content[0].text
         newsletter.markdown_body = edited_markdown
 
         self._render_output(newsletter)

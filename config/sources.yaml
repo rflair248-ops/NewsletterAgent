@@ -1,41 +1,53 @@
-# Source registry — feeds and APIs the collector agent pulls from
+# Source registry — focused on law firm SEO, marketing, and legal tech intelligence
 sources:
   rss_feeds:
-    - name: "Hacker News"
-      url: "https://hnrss.org/frontpage"
-      category: "tech"
-      reliability: 0.7
-      refresh_minutes: 30
-
-    - name: "TechCrunch"
-      url: "https://techcrunch.com/feed/"
-      category: "tech"
-      reliability: 0.8
+    - name: "Search Engine Land"
+      url: "https://searchengineland.com/feed"
+      category: "seo"
+      reliability: 0.9
       refresh_minutes: 60
 
-    - name: "Ars Technica"
-      url: "https://feeds.arstechnica.com/arstechnica/index"
-      category: "tech"
+    - name: "Search Engine Journal"
+      url: "https://www.searchenginejournal.com/feed/"
+      category: "seo"
       reliability: 0.85
       refresh_minutes: 60
 
-    - name: "The Verge"
-      url: "https://www.theverge.com/rss/index.xml"
-      category: "tech"
-      reliability: 0.75
-      refresh_minutes: 60
+    - name: "Google Search Central Blog"
+      url: "https://developers.google.com/search/blog/rss.xml"
+      category: "seo"
+      reliability: 0.95
+      refresh_minutes: 120
 
-    - name: "MIT Technology Review"
-      url: "https://www.technologyreview.com/feed/"
-      category: "research"
+    - name: "LawNext"
+      url: "https://www.lawnext.com/feed"
+      category: "legal_tech"
       reliability: 0.9
       refresh_minutes: 120
 
-    - name: "AI News (Hugging Face)"
-      url: "https://huggingface.co/blog/feed.xml"
-      category: "ai"
+    - name: "Artificial Lawyer"
+      url: "https://www.artificiallawyer.com/feed/"
+      category: "legal_tech"
       reliability: 0.85
       refresh_minutes: 120
+
+    - name: "Clio Blog"
+      url: "https://www.clio.com/blog/feed/"
+      category: "legal_marketing"
+      reliability: 0.85
+      refresh_minutes: 180
+
+    - name: "ABA Journal"
+      url: "https://www.abajournal.com/rss/news.rss"
+      category: "industry"
+      reliability: 0.85
+      refresh_minutes: 180
+
+    - name: "Google Ads Blog"
+      url: "https://blog.google/products/ads-commerce/rss/"
+      category: "marketing"
+      reliability: 0.9
+      refresh_minutes: 180
 
   apis:
     - name: "NewsAPI"
@@ -44,24 +56,16 @@ sources:
       category: "general"
       reliability: 0.7
       query_topics:
-        - "artificial intelligence"
-        - "machine learning"
-        - "technology startups"
-
-    - name: "Reddit Tech"
-      type: "reddit"
-      enabled: false
-      subreddits:
-        - "technology"
-        - "MachineLearning"
-        - "programming"
-      reliability: 0.6
-      min_upvotes: 100
+        - "law firm seo"
+        - "legal marketing"
+        - "legal tech ai"
+        - "google algorithm update"
 
 # Source category weights for scoring
 category_weights:
-  tech: 1.0
-  ai: 1.2
-  research: 1.1
+  seo: 1.2
+  legal_marketing: 1.2
+  legal_tech: 1.15
+  marketing: 1.0
+  industry: 0.95
   general: 0.8
-  business: 0.9

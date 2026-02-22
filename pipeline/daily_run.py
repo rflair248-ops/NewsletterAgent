@@ -14,6 +14,7 @@ from engine.agents.scorer import ScorerAgent
 from engine.agents.summarizer import SummarizerAgent
 from pipeline.context import PipelineContext
 from retrieval.config_loader import load_brand_config, load_settings, load_source_config
+from scripts.self_improve import analyze_run
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,9 @@ async def run_pipeline() -> PipelineContext:
                     stage=agent.name,
                     articles_count=len(context.articles),
                 )
+                if agent.name == "editor":
+                    analysis = await analyze_run(context._audit_entries, context.settings)
+                    context.audit("self_improvement", suggestions=analysis)
             except Exception:
                 logger.exception("Pipeline failed at stage: %s", agent.name)
                 context.audit("stage_error", stage=agent.name)

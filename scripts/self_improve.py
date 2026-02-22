@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from engine.llm_router import local_completion
+from retrieval.config_loader import load_settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,58 +35,43 @@ def _load_recent_audit_entries(limit: int = 50) -> list[dict[str, Any]]:
     return entries[-limit:]
 
 
-def _extract_json_block(text: str) -> dict[str, Any]:
-    text = text.strip()
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    start = text.find("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        try:
-            return json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            pass
-
-    return {
-        "observations": ["Could not parse model response as strict JSON."],
-        "suggested_weight_changes": {},
-        "suggested_threshold_changes": {},
-        "reasoning": text[:2000],
-    }
-
-
-async def analyze_run(audit_entries: list[dict[str, Any]]) -> dict[str, Any]:
+async def analyze_run(audit_entries: list[dict[str, Any]], settings: dict[str, Any]) -> dict[str, Any]:
     """Ask local model to analyze pipeline performance and suggest tuning."""
     summary = json.dumps(audit_entries[-50:], indent=2, default=str)
-    model = "mistral-small"
-
     prompt = f"""Analyze this newsletter pipeline run audit log and suggest improvements.
 
 Audit log (last 50 entries):
 {summary}
 
 Current scoring weights:
-- relevance: 0.25
-- quality: 0.25
-- timeliness: 0.20
-- uniqueness: 0.15
-- source_authority: 0.15
+relevance: 0.25, quality: 0.25, timeliness: 0.20, uniqueness: 0.15, source_authority: 0.15
 
-Respond with strict JSON:
+Respond with JSON:
 {{
   "observations": ["..."],
   "suggested_weight_changes": {{"dimension": 0.00}},
   "suggested_threshold_changes": {{"param": 0.00}},
   "reasoning": "..."
-}}
-"""
+}}"""
 
-    raw = await local_completion(model=model, prompt=prompt, temperature=0.2, max_tokens=1200)
-    result = _extract_json_block(raw)
-    return result
+    model = settings.get("llm", {}).get("local", {}).get("editor_model", "llama3.1:8b")
+    result = await local_completion(
+        model=model,
+        prompt=prompt,
+        system="You are a newsletter quality analyst. Be concise and data-driven.",
+    )
+
+    try:
+        analysis = json.loads(result)
+    except json.JSONDecodeError:
+        analysis = {"raw_response": result, "parse_error": True}
+
+    IMPROVEMENT_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with open(IMPROVEMENT_LOG, "a", encoding="utf-8") as f:
+        f.write(json.dumps(analysis, default=str) + "\n")
+
+    logger.info("Self-improvement analysis complete: %d observations", len(analysis.get("observations", [])))
+    return analysis
 
 
 async def main() -> None:
@@ -96,18 +82,8 @@ async def main() -> None:
         logger.warning("No audit entries found. Nothing to improve.")
         return
 
-    analysis = await analyze_run(entries)
-
-    IMPROVEMENT_LOG.parent.mkdir(parents=True, exist_ok=True)
-    row = {
-        "ts": __import__("datetime").datetime.utcnow().isoformat() + "Z",
-        "audit_entries_analyzed": len(entries),
-        "analysis": analysis,
-    }
-    with IMPROVEMENT_LOG.open("a", encoding="utf-8") as f:
-        f.write(json.dumps(row, ensure_ascii=False) + "\n")
-
-    logger.info("Wrote self-improvement analysis to %s", IMPROVEMENT_LOG)
+    settings = load_settings()
+    await analyze_run(entries, settings)
 
 
 if __name__ == "__main__":
