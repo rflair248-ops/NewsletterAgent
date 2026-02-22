@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 from memory.mem0_store import Mem0Store
@@ -48,12 +48,12 @@ class PipelineContext:
 
         # Audit log buffer
         self._audit_entries: list[dict] = []
-        self.run_id = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
+        self.run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
 
     def audit(self, event: str, **kwargs: object) -> None:
         """Append a structured audit log entry."""
         entry = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "run_id": self.run_id,
             "event": event,
             **kwargs,

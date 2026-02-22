@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from engine.agents.base import BaseAgent
 from models.enums import SectionType
@@ -42,7 +42,7 @@ class ComposerAgent(BaseAgent):
             )
 
         brand = self.context.brand_config
-        edition_id = datetime.utcnow().strftime("%Y%m%d")
+        edition_id = datetime.now(timezone.utc).strftime("%Y%m%d")
 
         newsletter = Newsletter(
             edition_id=edition_id,

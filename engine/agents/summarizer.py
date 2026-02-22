@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 
 import anthropic
@@ -91,5 +91,5 @@ class SummarizerAgent(BaseAgent):
             summary=data.get("summary", ""),
             key_points=data.get("key_points", []),
             read_time_seconds=max(30, len(article.raw_content.split()) // 4),
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
         )

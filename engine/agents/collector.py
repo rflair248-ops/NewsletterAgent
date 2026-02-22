@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 import feedparser
@@ -50,7 +50,7 @@ class CollectorAgent(BaseAgent):
                 continue
 
             published = entry.get("published_parsed")
-            pub_dt = datetime(*published[:6]) if published else None
+            pub_dt = datetime(*published[:6], tzinfo=timezone.utc) if published else None
 
             article_id = hashlib.sha256(
                 f"{url}:{pub_dt or ''}".encode()

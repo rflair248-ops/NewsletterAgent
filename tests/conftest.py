@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import pytest
 
@@ -19,7 +19,7 @@ def sample_article() -> Article:
         title="Test Article About AI Advances",
         source_name="Test Source",
         category=ContentCategory.AI,
-        published_at=datetime.utcnow(),
+        published_at=datetime.now(timezone.utc),
         raw_content="This is a test article about recent advances in artificial intelligence. "
         "Researchers have developed new methods for training large language models that "
         "significantly reduce computational costs while maintaining performance.",
@@ -37,7 +37,7 @@ def sample_articles() -> list[Article]:
             title=f"Test Article {i}",
             source_name="Test Source",
             category=ContentCategory.TECH,
-            published_at=datetime.utcnow(),
+            published_at=datetime.now(timezone.utc),
             raw_content=f"Content for article {i}. " * 20,
             status=ArticleStatus.COLLECTED,
             metadata={"reliability": 0.7},

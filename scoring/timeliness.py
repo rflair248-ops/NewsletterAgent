@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from models.article import Article
 from models.enums import ScoringDimension
@@ -16,7 +16,11 @@ async def score_timeliness(article: Article) -> ScoreBreakdown:
             reason="No publication date available",
         )
 
-    age_hours = (datetime.utcnow() - article.published_at).total_seconds() / 3600
+    published_at = article.published_at
+    if published_at.tzinfo is None:
+        published_at = published_at.replace(tzinfo=timezone.utc)
+
+    age_hours = (datetime.now(timezone.utc) - published_at).total_seconds() / 3600
 
     if age_hours < 6:
         value = 1.0

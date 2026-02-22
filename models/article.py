@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
@@ -18,7 +18,7 @@ class Article(BaseModel):
     source_name: str
     category: ContentCategory = ContentCategory.GENERAL
     published_at: datetime | None = None
-    fetched_at: datetime = Field(default_factory=datetime.utcnow)
+    fetched_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     raw_content: str = ""
     status: ArticleStatus = ArticleStatus.RAW
     metadata: dict = Field(default_factory=dict)
@@ -32,4 +32,4 @@ class ArticleSummary(BaseModel):
     summary: str = Field(max_length=500)
     key_points: list[str] = Field(default_factory=list)
     read_time_seconds: int = 0
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

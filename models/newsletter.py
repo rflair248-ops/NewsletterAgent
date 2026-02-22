@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
@@ -21,7 +21,7 @@ class Newsletter(BaseModel):
     """The final assembled newsletter."""
 
     edition_id: str
-    generated_at: datetime = Field(default_factory=datetime.utcnow)
+    generated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     subject_line: str = ""
     sections: list[NewsletterSection] = Field(default_factory=list)
     html_body: str = ""
