@@ -16,9 +16,18 @@ pipeline:
   dedup_lookback_days: 7
 
 llm:
+  # Primary (cloud) — used for complex reasoning tasks
   model: "claude-sonnet-4-20250514"
   max_tokens: 4096
   temperature: 0.3
+  # Local (Ollama) — used for article production at scale
+  local:
+    provider: "ollama"
+    base_url: "http://localhost:11434"
+    summarizer_model: "mistral-small"
+    editor_model: "llama3.1:8b"
+    temperature: 0.3
+    max_tokens: 2048
 
 memory:
   # Enable cross-run memory via Mem0
