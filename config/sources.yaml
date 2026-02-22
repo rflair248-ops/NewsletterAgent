@@ -8,13 +8,13 @@ sources:
       refresh_minutes: 60
 
     - name: "Search Engine Journal"
-      url: "https://www.searchenginejournal.com/feed/"
+      url: "https://feedpress.me/searchenginejournal"
       category: "seo"
       reliability: 0.85
       refresh_minutes: 60
 
     - name: "Google Search Central Blog"
-      url: "https://developers.google.com/search/blog/rss.xml"
+      url: "https://developers.google.com/search/blog/feed.xml"
       category: "seo"
       reliability: 0.95
       refresh_minutes: 120

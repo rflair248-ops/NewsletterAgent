@@ -36,7 +36,8 @@ class CollectorAgent(BaseAgent):
         self.logger.info("Total articles collected: %d", len(articles))
 
     async def _fetch_feed(self, feed: SourceFeed) -> list[Article]:
-        async with httpx.AsyncClient(timeout=30) as client:
+        headers = {"User-Agent": "Mozilla/5.0 (NewsletterAgent/1.0)"}
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True, headers=headers) as client:
             resp = await client.get(str(feed.url))
             resp.raise_for_status()
 

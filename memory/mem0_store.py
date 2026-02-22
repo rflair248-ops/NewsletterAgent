@@ -45,8 +45,23 @@ class Mem0Store:
                     "vector_store": {
                         "provider": "qdrant",
                         "config": {
-                            "collection_name": "newsletter_agent",
+
                             "path": ".mem0/qdrant",
+                            "on_disk": True,
+                        },
+                    },
+                    "embedder": {
+                        "provider": "ollama",
+                        "config": {
+                            "model": "nomic-embed-text",
+                            "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+                        },
+                    },
+                    "llm": {
+                        "provider": "ollama",
+                        "config": {
+                            "model": "llama3.1:8b",
+                            "ollama_base_url": os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
                         },
                     },
                 }
