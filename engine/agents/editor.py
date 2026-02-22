@@ -5,6 +5,12 @@ import anthropic
 from engine.agents.base import BaseAgent
 from engine.llm_router import claude_cli_completion, local_completion
 from models.enums import ArticleStatus
+from policy.quality_checks import (
+    append_quality_check,
+    critic_scorecard,
+    revise_with_fixes,
+    rule_based_scorecard,
+)
 
 
 EDIT_PROMPT = """\
@@ -40,6 +46,7 @@ class EditorAgent(BaseAgent):
         if review and review.get("approved") and not review.get("issues"):
             self.logger.info("Review passed — no edits needed")
             self._render_output(newsletter)
+            await self._run_single_feature_quality_checks(newsletter)
             return
 
         llm_cfg = self.context.settings.get("llm", {})
@@ -85,6 +92,7 @@ class EditorAgent(BaseAgent):
             )
         newsletter.markdown_body = edited_markdown
 
+        await self._run_single_feature_quality_checks(newsletter)
         self._render_output(newsletter)
 
         # Mark all articles as published and persist to memory
@@ -93,6 +101,72 @@ class EditorAgent(BaseAgent):
             await self._remember_article(article)
 
         self.logger.info("Editing complete — newsletter finalized")
+
+    async def _run_single_feature_quality_checks(self, newsletter) -> None:  # noqa: ANN001
+        pipeline_cfg = self.context.settings.get("pipeline", {})
+        enabled = bool(pipeline_cfg.get("single_feature_mode", False)) or (
+            (newsletter.metadata or {}).get("mode") == "single_feature"
+        )
+        if not enabled:
+            return
+
+        if not newsletter.markdown_body:
+            self._render_output(newsletter)
+
+        keyword = (newsletter.metadata or {}).get("target_keyword", "").strip()
+        source_urls = [str(a.url) for a in self.context.curated_articles if a.url]
+        cli_model = self.context.settings.get("llm", {}).get("cli_model", "sonnet")
+
+        fallback_used = False
+        try:
+            score = await critic_scorecard(
+                markdown=newsletter.markdown_body,
+                keyword=keyword,
+                source_urls=source_urls,
+                model=cli_model,
+            )
+        except Exception as exc:  # noqa: BLE001
+            fallback_used = True
+            self.logger.warning("Quality critic unavailable; using rule-based fallback: %s", exc)
+            score = rule_based_scorecard(newsletter.markdown_body, keyword, source_urls)
+            score["warning"] = "critic_unavailable_rule_based_fallback"
+
+        append_quality_check(score, run_id=self.context.run_id)
+
+        if score.get("pass"):
+            self.logger.info("Single-feature QA passed")
+            return
+
+        fixes = [str(f) for f in score.get("actionable_fixes", []) if str(f).strip()]
+        self.logger.warning("Single-feature QA failed; applying one revision pass")
+
+        if not fallback_used:
+            try:
+                revised = await revise_with_fixes(
+                    markdown=newsletter.markdown_body,
+                    keyword=keyword,
+                    fixes=fixes,
+                    model=cli_model,
+                )
+                newsletter.markdown_body = revised
+                recheck = await critic_scorecard(
+                    markdown=newsletter.markdown_body,
+                    keyword=keyword,
+                    source_urls=source_urls,
+                    model=cli_model,
+                )
+            except Exception as exc:  # noqa: BLE001
+                self.logger.warning("Revision/recheck critic unavailable; falling back to rules: %s", exc)
+                recheck = rule_based_scorecard(newsletter.markdown_body, keyword, source_urls)
+                recheck["warning"] = "critic_unavailable_after_revision"
+        else:
+            # Deterministic fallback path: do not block publish when critic is unavailable.
+            recheck = rule_based_scorecard(newsletter.markdown_body, keyword, source_urls)
+            recheck["warning"] = "rule_based_recheck_only"
+
+        append_quality_check(recheck, run_id=self.context.run_id)
+        if not recheck.get("pass"):
+            self.logger.warning("Single-feature QA still failing after one revision pass; proceeding with warning")
 
     async def _remember_article(self, article) -> None:  # noqa: ANN001
         """Store published article in Mem0 for cross-run dedup."""

@@ -32,9 +32,11 @@ PIPELINE_AGENTS = [
 ]
 
 
-async def run_pipeline() -> PipelineContext:
+async def run_pipeline(single_feature_mode: bool | None = None) -> PipelineContext:
     """Execute the full newsletter generation pipeline."""
     settings = load_settings()
+    if single_feature_mode is not None:
+        settings.setdefault("pipeline", {})["single_feature_mode"] = bool(single_feature_mode)
     brand = load_brand_config()
     sources = load_source_config()
 

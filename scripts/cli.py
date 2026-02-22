@@ -26,10 +26,12 @@ def main(verbose: bool) -> None:
 
 
 @main.command()
-def run() -> None:
+@click.option("--single-feature", "single_feature", flag_value=True, default=None, help="Enable single-feature mode for this run")
+@click.option("--no-single-feature", "single_feature", flag_value=False, help="Disable single-feature mode for this run")
+def run(single_feature: bool | None) -> None:
     """Execute a full pipeline run."""
     console.print("[bold]Starting newsletter pipeline...[/bold]")
-    context = asyncio.run(run_pipeline())
+    context = asyncio.run(run_pipeline(single_feature_mode=single_feature))
 
     if context.newsletter:
         console.print(
