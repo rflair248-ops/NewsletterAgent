@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime
 import json
 
+import anthropic
+
 from engine.agents.base import BaseAgent
 from engine.llm_router import local_completion
 from models.article import ArticleSummary
@@ -20,39 +22,52 @@ Respond in JSON with keys: headline (max 120 chars), summary (max 500 chars), ke
 
 
 class SummarizerAgent(BaseAgent):
-    """Uses local Ollama model to generate concise summaries of curated articles."""
+    """Generates concise summaries using Claude or local Ollama based on config."""
 
     name = "summarizer"
 
     async def run(self) -> None:
-        local_cfg = self.context.settings.get("llm", {}).get("local", {})
-        model = local_cfg.get("summarizer_model", "mistral-small")
-        temperature = local_cfg.get("temperature", 0.3)
-        max_tokens = local_cfg.get("max_tokens", 1024)
+        llm_cfg = self.context.settings.get("llm", {})
+        local_cfg = llm_cfg.get("local", {})
+        provider = local_cfg.get("provider", "ollama")
 
         for article in self.context.curated_articles:
             try:
-                summary = await self._summarize(model, article, temperature, max_tokens)
+                summary = await self._summarize(article, llm_cfg, local_cfg, provider)
                 self.context.summaries[article.id] = summary
             except Exception:
                 self.logger.exception("Failed to summarize article %s", article.id)
 
         self.logger.info("Generated %d summaries", len(self.context.summaries))
 
-    async def _summarize(self, model: str, article, temperature: float, max_tokens: int) -> ArticleSummary:  # noqa: ANN001
+    async def _summarize(self, article, llm_cfg: dict, local_cfg: dict, provider: str) -> ArticleSummary:  # noqa: ANN001
         prompt = SUMMARIZE_PROMPT.format(
             title=article.title,
             source=article.source_name,
             content=article.raw_content[:3000],
         )
 
-        text = await local_completion(
-            model=model,
-            prompt=prompt,
-            system="You are a newsletter summarizer. Return strict JSON only.",
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
+        if provider == "anthropic":
+            client = anthropic.AsyncAnthropic()
+            model = llm_cfg.get("model", "claude-sonnet-4-20250514")
+            response = await client.messages.create(
+                model=model,
+                max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.content[0].text
+        else:
+            model = local_cfg.get("summarizer_model", "mistral-small")
+            temperature = local_cfg.get("temperature", 0.3)
+            max_tokens = local_cfg.get("max_tokens", 1024)
+            text = await local_completion(
+                model=model,
+                prompt=prompt,
+                system="You are a newsletter summarizer. Return strict JSON only.",
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
         data = json.loads(text)
 
         return ArticleSummary(

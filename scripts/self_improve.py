@@ -8,6 +8,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+import anthropic
+
 from engine.llm_router import local_completion
 from retrieval.config_loader import load_settings
 
@@ -54,12 +56,26 @@ Respond with JSON:
   "reasoning": "..."
 }}"""
 
-    model = settings.get("llm", {}).get("local", {}).get("editor_model", "llama3.1:8b")
-    result = await local_completion(
-        model=model,
-        prompt=prompt,
-        system="You are a newsletter quality analyst. Be concise and data-driven.",
-    )
+    llm_cfg = settings.get("llm", {})
+    local_cfg = llm_cfg.get("local", {})
+    provider = local_cfg.get("provider", "ollama")
+
+    if provider == "anthropic":
+        client = anthropic.AsyncAnthropic()
+        model = llm_cfg.get("model", "claude-sonnet-4-20250514")
+        response = await client.messages.create(
+            model=model,
+            max_tokens=1200,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        result = response.content[0].text
+    else:
+        model = local_cfg.get("editor_model", "llama3.1:8b")
+        result = await local_completion(
+            model=model,
+            prompt=prompt,
+            system="You are a newsletter quality analyst. Be concise and data-driven.",
+        )
 
     try:
         analysis = json.loads(result)
