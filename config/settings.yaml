@@ -14,6 +14,12 @@ pipeline:
   dedup_enabled: true
   # Lookback window for dedup (days)
   dedup_lookback_days: 7
+  # Produce one synthesis-heavy feature article/day instead of digest sections
+  single_feature_mode: false
+  # Number of top-scored items to pass into clustering stage
+  single_feature_top_k: 8
+  # Minimum number of items required in selected thematic cluster
+  single_feature_min_cluster_size: 3
 
 llm:
   # Primary (cloud/API) model identifier
