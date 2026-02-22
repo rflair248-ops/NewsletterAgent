@@ -66,11 +66,35 @@ class EditorAgent(BaseAgent):
 
         self._render_output(newsletter)
 
-        # Mark all articles as published
+        # Mark all articles as published and persist to memory
         for article in self.context.curated_articles:
             article.status = ArticleStatus.PUBLISHED
+            await self._remember_article(article)
 
         self.logger.info("Editing complete — newsletter finalized")
+
+    async def _remember_article(self, article) -> None:  # noqa: ANN001
+        """Store published article in Mem0 for cross-run dedup."""
+        memory = self.context.memory
+        if not memory.enabled:
+            return
+
+        summary = self.context.summaries.get(article.id)
+        summary_text = summary.summary if summary else ""
+
+        await memory.store_article(
+            article_id=article.id,
+            title=article.title,
+            source=article.source_name,
+            summary=summary_text,
+            run_id=self.context.run_id,
+        )
+        await memory.store_decision(
+            run_id=self.context.run_id,
+            article_id=article.id,
+            decision="published",
+            reason=f"Included in edition {self.context.newsletter.edition_id if self.context.newsletter else 'unknown'}",
+        )
 
     def _render_output(self, newsletter) -> None:  # noqa: ANN001
         if not newsletter.markdown_body:

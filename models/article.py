@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
 from models.enums import ArticleStatus, ContentCategory
 
 
 class Article(BaseModel):
     """A single article flowing through the pipeline."""
+
+    model_config = ConfigDict(frozen=False)
 
     id: str = Field(description="Deterministic hash of url + published_at")
     url: HttpUrl
@@ -20,9 +22,6 @@ class Article(BaseModel):
     raw_content: str = ""
     status: ArticleStatus = ArticleStatus.RAW
     metadata: dict = Field(default_factory=dict)
-
-    class Config:
-        frozen = False
 
 
 class ArticleSummary(BaseModel):

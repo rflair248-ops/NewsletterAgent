@@ -22,13 +22,14 @@ async def compute_composite_score(
     article: Article,
     category_weights: dict[str, float],
     settings: dict,
+    mem0_store: object | None = None,
 ) -> ArticleScore:
     """Run all five scoring modules and produce a composite score."""
     breakdowns = [
         await score_relevance(article, category_weights),
         await score_quality(article),
         await score_timeliness(article),
-        await score_uniqueness(article),
+        await score_uniqueness(article, mem0_store=mem0_store),
         await score_source_authority(article),
     ]
 

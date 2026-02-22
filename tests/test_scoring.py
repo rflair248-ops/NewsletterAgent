@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
+from memory.mem0_store import Mem0Store
 from models.article import Article
 from models.enums import ScoringDimension
 from scoring.composite import compute_composite_score
@@ -38,10 +41,35 @@ class TestTimeliness:
 
 class TestUniqueness:
     @pytest.mark.asyncio
-    async def test_uniqueness_scoring(self, sample_article: Article):
+    async def test_uniqueness_scoring_without_memory(self, sample_article: Article):
         result = await score_uniqueness(sample_article)
         assert result.dimension == ScoringDimension.UNIQUENESS
         assert 0.0 <= result.value <= 1.0
+
+    @pytest.mark.asyncio
+    async def test_uniqueness_penalized_by_mem0_match(self, sample_article: Article):
+        mock_store = MagicMock(spec=Mem0Store)
+        mock_store.enabled = True
+        mock_store.find_similar_articles = AsyncMock(
+            return_value=[{"memory_id": "m1", "score": 0.92, "memory": "seen", "metadata": {}}]
+        )
+
+        result_with_mem0 = await score_uniqueness(sample_article, mem0_store=mock_store)
+        result_without = await score_uniqueness(sample_article, mem0_store=None)
+
+        assert result_with_mem0.value < result_without.value
+        assert "Mem0 match" in result_with_mem0.reason
+
+    @pytest.mark.asyncio
+    async def test_uniqueness_partial_mem0_match(self, sample_article: Article):
+        mock_store = MagicMock(spec=Mem0Store)
+        mock_store.enabled = True
+        mock_store.find_similar_articles = AsyncMock(
+            return_value=[{"memory_id": "m1", "score": 0.70, "memory": "partial", "metadata": {}}]
+        )
+
+        result = await score_uniqueness(sample_article, mem0_store=mock_store)
+        assert "Mem0 partial match" in result.reason
 
 
 class TestSourceAuthority:
@@ -60,6 +88,22 @@ class TestComposite:
             sample_article,
             category_weights={"ai": 1.2},
             settings=settings,
+        )
+        assert 0.0 <= score.overall <= 1.0
+        assert len(score.breakdown) == 5
+
+    @pytest.mark.asyncio
+    async def test_composite_score_with_mem0(self, sample_article: Article):
+        mock_store = MagicMock(spec=Mem0Store)
+        mock_store.enabled = True
+        mock_store.find_similar_articles = AsyncMock(return_value=[])
+
+        settings = {"pipeline": {"min_quality_score": 0.5}}
+        score = await compute_composite_score(
+            sample_article,
+            category_weights={"ai": 1.2},
+            settings=settings,
+            mem0_store=mock_store,
         )
         assert 0.0 <= score.overall <= 1.0
         assert len(score.breakdown) == 5

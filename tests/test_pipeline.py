@@ -17,6 +17,14 @@ class TestPipelineContext:
         assert ctx.newsletter is None
         assert ctx.run_id is not None
 
+    def test_context_has_memory(self):
+        ctx = PipelineContext(
+            settings=load_settings(),
+            brand_config=load_brand_config(),
+            source_config=SourceConfig(),
+        )
+        assert ctx.memory is not None
+
     def test_audit_logging(self):
         ctx = PipelineContext(
             settings=load_settings(),

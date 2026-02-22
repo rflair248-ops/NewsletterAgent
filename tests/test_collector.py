@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import pytest
 
-from engine.agents.collector import CollectorAgent
-from pipeline.context import PipelineContext
+feedparser = pytest.importorskip("feedparser", reason="feedparser not installed")
+
+from engine.agents.collector import CollectorAgent  # noqa: E402
+from pipeline.context import PipelineContext  # noqa: E402
 
 
 class TestCollectorAgent:

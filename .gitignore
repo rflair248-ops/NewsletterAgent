@@ -37,3 +37,6 @@ htmlcov/
 
 # mypy
 .mypy_cache/
+
+# Mem0 local data
+.mem0/

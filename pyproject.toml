@@ -6,7 +6,6 @@ build-backend = "hatchling.build"
 name = "newsletter-agent"
 version = "0.1.0"
 description = "AI-powered newsletter generation agent with multi-stage pipeline"
-readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "NewsletterAgent Team" }]
@@ -40,6 +39,20 @@ memory = [
 [project.scripts]
 newsletter = "scripts.cli:main"
 newsletter-run = "scripts.run_pipeline:main"
+
+[tool.hatch.build.targets.wheel]
+packages = [
+    "config",
+    "models",
+    "engine",
+    "pipeline",
+    "scoring",
+    "policy",
+    "retrieval",
+    "audit_log",
+    "memory",
+    "scripts",
+]
 
 [tool.ruff]
 target-version = "py311"

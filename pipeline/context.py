@@ -5,6 +5,7 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from memory.mem0_store import Mem0Store
 from models.article import Article, ArticleSummary
 from models.enums import SectionType
 from models.newsletter import Newsletter
@@ -22,10 +23,14 @@ class PipelineContext:
         settings: dict,
         brand_config: dict,
         source_config: SourceConfig,
+        mem0_store: Mem0Store | None = None,
     ) -> None:
         self.settings = settings
         self.brand_config = brand_config
         self.source_config = source_config
+
+        # Memory layer (cross-run dedup, editorial decisions)
+        self.memory = mem0_store or Mem0Store()
 
         # Mutable state populated by agents
         self.articles: list[Article] = []

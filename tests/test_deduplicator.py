@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
 from engine.agents.deduplicator import DeduplicatorAgent
+from memory.mem0_store import Mem0Store
 from models.article import Article
 from models.enums import ArticleStatus, ContentCategory
 from pipeline.context import PipelineContext
@@ -14,7 +17,7 @@ class TestDeduplicatorAgent:
         assert agent.name == "deduplicator"
 
     @pytest.mark.asyncio
-    async def test_removes_duplicates(self, pipeline_context: PipelineContext):
+    async def test_removes_intra_run_duplicates(self, pipeline_context: PipelineContext):
         articles = [
             Article(
                 id="a1",
@@ -52,6 +55,60 @@ class TestDeduplicatorAgent:
         rejected = [a for a in articles if a.status == ArticleStatus.REJECTED]
         assert len(kept) == 2
         assert len(rejected) == 1
+
+    @pytest.mark.asyncio
+    async def test_cross_run_dedup_with_mem0(self, pipeline_context: PipelineContext):
+        """When Mem0 returns a high-similarity match, the article is rejected."""
+        mock_memory = MagicMock(spec=Mem0Store)
+        mock_memory.enabled = True
+        mock_memory.find_similar_articles = AsyncMock(
+            return_value=[{"memory_id": "mem1", "score": 0.92, "memory": "Old article", "metadata": {}}]
+        )
+        pipeline_context.memory = mock_memory
+
+        articles = [
+            Article(
+                id="x1",
+                url="https://example.com/x1",
+                title="Unique New Article Title",
+                source_name="Source X",
+                category=ContentCategory.TECH,
+                raw_content="Some content",
+                status=ArticleStatus.SCORED,
+            ),
+        ]
+        pipeline_context.articles = articles
+        agent = DeduplicatorAgent(pipeline_context)
+        await agent.run()
+
+        assert articles[0].status == ArticleStatus.REJECTED
+
+    @pytest.mark.asyncio
+    async def test_cross_run_low_similarity_passes(self, pipeline_context: PipelineContext):
+        """When Mem0 match is below threshold, article passes dedup."""
+        mock_memory = MagicMock(spec=Mem0Store)
+        mock_memory.enabled = True
+        mock_memory.find_similar_articles = AsyncMock(
+            return_value=[{"memory_id": "mem1", "score": 0.50, "memory": "Vaguely related", "metadata": {}}]
+        )
+        pipeline_context.memory = mock_memory
+
+        articles = [
+            Article(
+                id="y1",
+                url="https://example.com/y1",
+                title="Brand New Topic",
+                source_name="Source Y",
+                category=ContentCategory.AI,
+                raw_content="Fresh content",
+                status=ArticleStatus.SCORED,
+            ),
+        ]
+        pipeline_context.articles = articles
+        agent = DeduplicatorAgent(pipeline_context)
+        await agent.run()
+
+        assert articles[0].status == ArticleStatus.DEDUPLICATED
 
     def test_similarity_check(self, pipeline_context: PipelineContext):
         agent = DeduplicatorAgent(pipeline_context)

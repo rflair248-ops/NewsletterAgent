@@ -20,6 +20,17 @@ llm:
   max_tokens: 4096
   temperature: 0.3
 
+memory:
+  # Enable cross-run memory via Mem0
+  enabled: true
+  # Vector store for local open-source mode (ignored when MEM0_API_KEY is set)
+  vector_store:
+    provider: "qdrant"
+    collection_name: "newsletter_agent"
+    path: ".mem0/qdrant"
+  # Similarity threshold for cross-run dedup (0.0 - 1.0)
+  dedup_threshold: 0.85
+
 scheduling:
   # Cron expression for daily run
   cron: "0 6 * * *"

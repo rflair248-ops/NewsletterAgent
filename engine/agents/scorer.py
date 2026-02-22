@@ -20,6 +20,7 @@ class ScorerAgent(BaseAgent):
                 article,
                 category_weights=self.context.source_config.category_weights,
                 settings=self.context.settings,
+                mem0_store=self.context.memory,
             )
             self.context.scores[article.id] = score
             article.status = ArticleStatus.SCORED
