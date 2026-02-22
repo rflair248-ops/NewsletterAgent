@@ -13,7 +13,6 @@ from policy.quality_checks import (
     append_quality_check,
     critic_scorecard,
     revise_with_fixes,
-    rule_based_scorecard,
 )
 
 
@@ -126,7 +125,6 @@ class EditorAgent(BaseAgent):
         source_urls = [str(a.url) for a in self.context.curated_articles if a.url]
         cli_model_value = cli_model(self.context.settings)
 
-        fallback_used = False
         try:
             score = await critic_scorecard(
                 markdown=newsletter.markdown_body,
@@ -135,10 +133,8 @@ class EditorAgent(BaseAgent):
                 model=cli_model_value,
             )
         except Exception as exc:  # noqa: BLE001
-            fallback_used = True
-            self.logger.warning("Quality critic unavailable; using rule-based fallback: %s", exc)
-            score = rule_based_scorecard(newsletter.markdown_body, keyword, source_urls)
-            score["warning"] = "critic_unavailable_rule_based_fallback"
+            self.logger.error("Quality critic unavailable; blocking publish: %s", exc)
+            raise RuntimeError("Single-feature publish blocked: Claude critic unavailable") from exc
 
         append_quality_check(score, run_id=self.context.run_id)
 
@@ -149,29 +145,23 @@ class EditorAgent(BaseAgent):
         fixes = [str(f) for f in score.get("actionable_fixes", []) if str(f).strip()]
         self.logger.warning("Single-feature QA failed; applying one revision pass")
 
-        if not fallback_used:
-            try:
-                revised = await revise_with_fixes(
-                    markdown=newsletter.markdown_body,
-                    keyword=keyword,
-                    fixes=fixes,
-                    model=cli_model_value,
-                )
-                newsletter.markdown_body = revised
-                recheck = await critic_scorecard(
-                    markdown=newsletter.markdown_body,
-                    keyword=keyword,
-                    source_urls=source_urls,
-                    model=cli_model_value,
-                )
-            except Exception as exc:  # noqa: BLE001
-                self.logger.warning("Revision/recheck critic unavailable; falling back to rules: %s", exc)
-                recheck = rule_based_scorecard(newsletter.markdown_body, keyword, source_urls)
-                recheck["warning"] = "critic_unavailable_after_revision"
-        else:
-            # Deterministic fallback path: do not block publish when critic is unavailable.
-            recheck = rule_based_scorecard(newsletter.markdown_body, keyword, source_urls)
-            recheck["warning"] = "rule_based_recheck_only"
+        try:
+            revised = await revise_with_fixes(
+                markdown=newsletter.markdown_body,
+                keyword=keyword,
+                fixes=fixes,
+                model=cli_model_value,
+            )
+            newsletter.markdown_body = revised
+            recheck = await critic_scorecard(
+                markdown=newsletter.markdown_body,
+                keyword=keyword,
+                source_urls=source_urls,
+                model=cli_model_value,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.logger.error("Revision/recheck critic unavailable; blocking publish: %s", exc)
+            raise RuntimeError("Single-feature publish blocked: Claude critic unavailable during recheck") from exc
 
         append_quality_check(recheck, run_id=self.context.run_id)
         if not recheck.get("pass"):
